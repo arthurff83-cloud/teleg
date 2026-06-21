@@ -158,16 +158,18 @@ def kb_access(has_call: bool = False) -> InlineKeyboardMarkup:
 
 START_TEXT = """🌸 𝐎𝐢𝐢, 𝐚𝐦𝐨𝐫... 𝐞𝐮 𝐞𝐬𝐭𝐚𝐯𝐚 𝐭𝐞 𝐞𝐬𝐩𝐞𝐫𝐚𝐧𝐝𝐨 💦💗
 
+START_TEXT = """🌸 𝐎𝐢𝐢, 𝐚𝐦𝐨𝐫... 𝐞𝐮 𝐞𝐬𝐭𝐚𝐯𝐚 𝐭𝐞 𝐞𝐬𝐩𝐞𝐫𝐚𝐧𝐝𝐨 💦💗
+
 🔞 𝐀𝐂𝐄𝐒𝐒𝐎 𝐕𝐈𝐏 𝐏𝐑𝐈𝐕𝐀𝐃𝐎 🔞
 
-+𝟖𝟐𝟎 𝐌𝐈́𝐃𝐈𝐀𝐒 𝐄𝐗𝐂𝐋𝐔𝐒𝐈𝐕𝐀𝐒 | 𝐏𝐑𝐈𝐕𝐀𝐂𝐘
++𝟐𝟐𝟎 𝐌𝐈́𝐃𝐈𝐀𝐒 𝐄𝐗𝐂𝐋𝐔𝐒𝐈𝐕𝐀𝐒 
 
-😈 𝐀𝐍𝐀𝐋, 𝐁𝐎𝐐𝐔𝐄𝐓𝐄 𝐄 𝐂𝐎𝐍𝐓𝐄𝐔́𝐃𝐎 𝐏𝐑𝐎𝐈𝐁𝐈𝐃𝐈𝐍𝐇𝐎
+😈 𝐀𝐍𝐀𝐋,𝐁𝐎𝐐𝐔𝐄𝐓𝐄 𝐄 𝐂𝐎𝐍𝐓𝐄𝐔́𝐃𝐎 𝐏𝐑𝐎𝐈𝐁𝐈𝐃𝐈𝐍𝐇𝐎
 
 🎀 Vídeos exclusivos bem safadinhos
-🎀 Conteúdos íntimos que você não vê em qualquer lugar
-🎀 Mídias novas e atualizações frequentes
-🎀 Lives exclusivas para assinantes
+🎀 Dando meu cuzinho apertado
+🎀 Mídias novas e atualizações todo dia
+🎀 Video de incesto bem safados
 🎀 Vídeo personalizado gemendo seu nome
 🎀 Conteúdo privado, discreto e liberado na hora
 
@@ -227,8 +229,19 @@ def create_pix_qr_image(pix_payload: str, external_id: str) -> Optional[Path]:
 
 
 def resolve_file_path(path_value: str) -> Optional[Path]:
-    """Procura o arquivo tanto pela pasta atual quanto pela pasta do main.py."""
+    """Procura o vídeo por caminhos comuns no Railway/GitHub."""
     candidates = [Path(path_value), BASE_DIR / path_value]
+
+    # Fallbacks para quando o arquivo foi enviado direto na raiz do repositório.
+    # Ex.: media_start.mp4 em vez de media/start.mp4.
+    filename = Path(path_value).name
+    candidates += [
+        Path(filename),
+        BASE_DIR / filename,
+        Path("media_start.mp4"),
+        BASE_DIR / "media_start.mp4",
+    ]
+
     for candidate in candidates:
         if candidate.exists():
             return candidate
@@ -285,7 +298,11 @@ async def create_sunize_transaction(order: Order) -> dict:
     headers = {"x-api-key": SUNIZE_API_KEY, "x-api-secret": SUNIZE_API_SECRET}
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(f"{SUNIZE_BASE_URL}/transactions", json=payload, headers=headers)
-        r.raise_for_status()
+        try:
+            r.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            body = r.text[:1800]
+            raise RuntimeError(f"Sunize HTTP {r.status_code}: {body}") from e
         return r.json()
 
 
@@ -416,9 +433,14 @@ async def gerar_pix(message: types.Message, user: types.User, has_call: bool, ph
         db.commit()
     except Exception as e:
         db.rollback()
-        await message.answer("❌ Não consegui gerar o Pix agora. Chame o suporte ou tente novamente em alguns minutos.")
+        await message.answer("❌ Não consegui gerar o Pix agora. Tente novamente em alguns minutos.")
         if ADMIN_ID:
-            await bot.send_message(ADMIN_ID, f"Erro ao gerar Pix: {e}")
+            await bot.send_message(
+                ADMIN_ID,
+                "Erro ao gerar Pix na Sunize:\n"
+                f"{e}\n\n"
+                "Se aparecer HTTP 400, confira principalmente: CPF válido, telefone em +55DDDNÚMERO e credenciais da Sunize."
+            )
         db.close()
         await state.clear()
         return

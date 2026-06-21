@@ -76,3 +76,13 @@ Se `DEFAULT_CUSTOMER_PHONE` ficar vazio, o bot pede o telefone do cliente antes 
 
 - Adicionado botão para copiar o Pix copia e cola quando o cliente recebe o pagamento.
 - Se o app do Telegram não suportar cópia direta, o botão envia o código Pix novamente separado.
+
+
+## Correções v8
+
+- O bot procura o vídeo em `media/start.mp4` e também aceita `media_start.mp4` na raiz como fallback.
+- O botão de copiar Pix usa o recurso nativo `copy_text` do Telegram.
+- O Pix é gerado com `SUNIZE_FEE_DISCOUNT=0.99` descontado do valor final.
+- Se a Sunize devolver HTTP 400, o bot manda o corpo do erro para o ADMIN_ID para identificar se é CPF, telefone ou credencial.
+
+A Sunize exige CPF/CNPJ válido e telefone no padrão internacional. Não use CPF fictício se a API rejeitar.
