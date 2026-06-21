@@ -160,14 +160,14 @@ START_TEXT = """🌸 𝐎𝐢𝐢, 𝐚𝐦𝐨𝐫... 𝐞𝐮 𝐞𝐬𝐭𝐚
 
 🔞 𝐀𝐂𝐄𝐒𝐒𝐎 𝐕𝐈𝐏 𝐏𝐑𝐈𝐕𝐀𝐃𝐎 🔞
 
-+𝟖𝟐𝟎 𝐌𝐈́𝐃𝐈𝐀𝐒 𝐄𝐗𝐂𝐋𝐔𝐒𝐈𝐕𝐀𝐒 | 𝐏𝐑𝐈𝐕𝐀𝐂𝐘
++𝟐𝟐𝟎 𝐌𝐈́𝐃𝐈𝐀𝐒 𝐄𝐗𝐂𝐋𝐔𝐒𝐈𝐕𝐀𝐒 | 𝐏𝐑𝐈𝐕𝐀𝐂𝐘
 
 😈 𝐀𝐍𝐀𝐋, 𝐁𝐎𝐐𝐔𝐄𝐓𝐄 𝐄 𝐂𝐎𝐍𝐓𝐄𝐔́𝐃𝐎 𝐏𝐑𝐎𝐈𝐁𝐈𝐃𝐈𝐍𝐇𝐎
 
 🎀 Vídeos exclusivos bem safadinhos
-🎀 Conteúdos íntimos que você não vê em qualquer lugar
-🎀 Mídias novas e atualizações frequentes
-🎀 Lives exclusivas para assinantes
+🎀 Dando meu cuzinho apertado
+🎀 Mídias novas e atualizações todo dia
+🎀 Vídeos de incesrto bem safados
 🎀 Vídeo personalizado gemendo seu nome
 🎀 Conteúdo privado, discreto e liberado na hora
 
