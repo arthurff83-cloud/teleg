@@ -368,9 +368,6 @@ async def confirmar_18(callback: types.CallbackQuery):
     if video_path:
         await callback.message.answer_video(
             video=FSInputFile(video_path),
-            duration=6,
-            width=510,
-            height=904,
             supports_streaming=True,
         )
     else:
