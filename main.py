@@ -158,18 +158,16 @@ def kb_access(has_call: bool = False) -> InlineKeyboardMarkup:
 
 START_TEXT = """🌸 𝐎𝐢𝐢, 𝐚𝐦𝐨𝐫... 𝐞𝐮 𝐞𝐬𝐭𝐚𝐯𝐚 𝐭𝐞 𝐞𝐬𝐩𝐞𝐫𝐚𝐧𝐝𝐨 💦💗
 
-START_TEXT = """🌸 𝐎𝐢𝐢, 𝐚𝐦𝐨𝐫... 𝐞𝐮 𝐞𝐬𝐭𝐚𝐯𝐚 𝐭𝐞 𝐞𝐬𝐩𝐞𝐫𝐚𝐧𝐝𝐨 💦💗
-
 🔞 𝐀𝐂𝐄𝐒𝐒𝐎 𝐕𝐈𝐏 𝐏𝐑𝐈𝐕𝐀𝐃𝐎 🔞
 
-+𝟐𝟐𝟎 𝐌𝐈́𝐃𝐈𝐀𝐒 𝐄𝐗𝐂𝐋𝐔𝐒𝐈𝐕𝐀𝐒 
++𝟖𝟐𝟎 𝐌𝐈́𝐃𝐈𝐀𝐒 𝐄𝐗𝐂𝐋𝐔𝐒𝐈𝐕𝐀𝐒 | 𝐏𝐑𝐈𝐕𝐀𝐂𝐘
 
-😈 𝐀𝐍𝐀𝐋,𝐁𝐎𝐐𝐔𝐄𝐓𝐄 𝐄 𝐂𝐎𝐍𝐓𝐄𝐔́𝐃𝐎 𝐏𝐑𝐎𝐈𝐁𝐈𝐃𝐈𝐍𝐇𝐎
+😈 𝐀𝐍𝐀𝐋, 𝐁𝐎𝐐𝐔𝐄𝐓𝐄 𝐄 𝐂𝐎𝐍𝐓𝐄𝐔́𝐃𝐎 𝐏𝐑𝐎𝐈𝐁𝐈𝐃𝐈𝐍𝐇𝐎
 
 🎀 Vídeos exclusivos bem safadinhos
-🎀 Dando meu cuzinho apertado
-🎀 Mídias novas e atualizações todo dia
-🎀 Video de incesto bem safados
+🎀 Conteúdos íntimos que você não vê em qualquer lugar
+🎀 Mídias novas e atualizações frequentes
+🎀 Lives exclusivas para assinantes
 🎀 Vídeo personalizado gemendo seu nome
 🎀 Conteúdo privado, discreto e liberado na hora
 
@@ -203,16 +201,34 @@ def only_digits(value: str) -> str:
     return "".join(ch for ch in value if ch.isdigit())
 
 
+def unwrap_sunize_response(res: dict) -> dict:
+    """A Sunize às vezes devolve a transação direto e às vezes dentro de data/transaction."""
+    if not isinstance(res, dict):
+        return {}
+    for key in ("data", "transaction", "result"):
+        inner = res.get(key)
+        if isinstance(inner, dict) and (inner.get("id") or inner.get("pix") or inner.get("pix_payload") or inner.get("pixPayload")):
+            return inner
+    return res
+
+
 def get_pix_payload(res: dict) -> str:
+    res = unwrap_sunize_response(res)
     pix = res.get("pix") or {}
+    if isinstance(pix, str):
+        return pix
+    if not isinstance(pix, dict):
+        pix = {}
     return (
         pix.get("payload")
         or pix.get("copy_paste")
         or pix.get("copyPaste")
         or pix.get("qrcode")
         or pix.get("qr_code")
+        or pix.get("qrCode")
         or res.get("pix_payload")
         or res.get("pixPayload")
+        or res.get("emv")
         or ""
     )
 
@@ -298,12 +314,24 @@ async def create_sunize_transaction(order: Order) -> dict:
     headers = {"x-api-key": SUNIZE_API_KEY, "x-api-secret": SUNIZE_API_SECRET}
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(f"{SUNIZE_BASE_URL}/transactions", json=payload, headers=headers)
+
+        # Algumas contas/rotas da Sunize podem retornar HTTP 400 mesmo registrando a venda.
+        # Então primeiro tentamos ler o JSON; se vier id/pix/status de transação, aceitamos.
+        try:
+            data = r.json()
+        except Exception:
+            data = {}
+
+        tx = unwrap_sunize_response(data)
+        if isinstance(tx, dict) and (tx.get("id") or tx.get("external_id") or get_pix_payload(tx)):
+            return tx
+
         try:
             r.raise_for_status()
         except httpx.HTTPStatusError as e:
             body = r.text[:1800]
             raise RuntimeError(f"Sunize HTTP {r.status_code}: {body}") from e
-        return r.json()
+        return data
 
 
 async def send_access(telegram_id: str, has_call: bool) -> None:
@@ -427,7 +455,8 @@ async def gerar_pix(message: types.Message, user: types.User, has_call: bool, ph
 
     try:
         res = await create_sunize_transaction(order)
-        order.sunize_id = res.get("id")
+        res = unwrap_sunize_response(res)
+        order.sunize_id = res.get("id") or res.get("transaction_id") or res.get("transactionId")
         order.status = res.get("status", "PENDING")
         order.pix_payload = get_pix_payload(res)
         db.commit()
@@ -439,7 +468,7 @@ async def gerar_pix(message: types.Message, user: types.User, has_call: bool, ph
                 ADMIN_ID,
                 "Erro ao gerar Pix na Sunize:\n"
                 f"{e}\n\n"
-                "Se aparecer HTTP 400, confira principalmente: CPF válido, telefone em +55DDDNÚMERO e credenciais da Sunize."
+                "Se aparecer HTTP 400 mas a venda apareceu na Sunize, use a v9: ela aceita a transação mesmo quando a API retorna 400 com dados válidos."
             )
         db.close()
         await state.clear()
