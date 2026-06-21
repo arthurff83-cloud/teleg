@@ -58,3 +58,15 @@ DEFAULT_CUSTOMER_PHONE=
 ```
 
 Se `DEFAULT_CUSTOMER_PHONE` ficar vazio, o bot pede o telefone do cliente antes de gerar o Pix. Se preencher, o Pix é gerado direto depois da oferta.
+
+## Atualização aplicada
+- Botões com emojis coloridos para combinar melhor com o texto. O Telegram não permite mudar a cor real dos botões inline, apenas texto/emojis.
+- Pix agora envia: texto de pagamento, QR Code separado e código copia e cola separado.
+- Foto e vídeo do /start foram incluídos na pasta `media/` como `start.jpg` e `start.mp4`.
+
+
+## Atualização v3
+- Botões sem emojis de cor adicionais.
+- Mantém envio da foto + vídeo após confirmação +18.
+- Mantém Pix em mensagens separadas: texto, QR Code e código copia e cola.
+- Confirme no Railway: START_PHOTO_PATH=media/start.jpg e START_VIDEO_PATH=media/start.mp4

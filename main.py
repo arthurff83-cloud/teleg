@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+import qrcode
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
@@ -173,6 +174,31 @@ def only_digits(value: str) -> str:
     return "".join(ch for ch in value if ch.isdigit())
 
 
+def get_pix_payload(res: dict) -> str:
+    pix = res.get("pix") or {}
+    return (
+        pix.get("payload")
+        or pix.get("copy_paste")
+        or pix.get("copyPaste")
+        or pix.get("qrcode")
+        or pix.get("qr_code")
+        or res.get("pix_payload")
+        or res.get("pixPayload")
+        or ""
+    )
+
+
+def create_pix_qr_image(pix_payload: str, external_id: str) -> Optional[Path]:
+    if not pix_payload:
+        return None
+    qr_dir = Path("/tmp/telegram_bot_qr")
+    qr_dir.mkdir(parents=True, exist_ok=True)
+    qr_path = qr_dir / f"pix_{external_id}.png"
+    img = qrcode.make(pix_payload)
+    img.save(qr_path)
+    return qr_path
+
+
 async def create_sunize_transaction(order: Order) -> dict:
     items = [{
         "id": "acesso_vitalicio",
@@ -255,6 +281,12 @@ async def confirmar_18(callback: types.CallbackQuery):
         await callback.message.answer_photo(FSInputFile(START_PHOTO_PATH))
     elif video_exists:
         await callback.message.answer_video(FSInputFile(START_VIDEO_PATH))
+    else:
+        if ADMIN_ID:
+            await bot.send_message(
+                ADMIN_ID,
+                f"⚠️ Mídia do /start não encontrada. Confira se existem: {START_PHOTO_PATH} e {START_VIDEO_PATH}"
+            )
 
     await callback.message.answer(START_TEXT, reply_markup=kb_buy())
     await callback.answer()
@@ -338,7 +370,7 @@ async def gerar_pix(message: types.Message, user: types.User, has_call: bool, ph
         res = await create_sunize_transaction(order)
         order.sunize_id = res.get("id")
         order.status = res.get("status", "PENDING")
-        order.pix_payload = (res.get("pix") or {}).get("payload")
+        order.pix_payload = get_pix_payload(res)
         db.commit()
     except Exception as e:
         db.rollback()
@@ -353,16 +385,27 @@ async def gerar_pix(message: types.Message, user: types.User, has_call: bool, ph
     await state.clear()
 
     valor = "33,39" if has_call else "17,49"
-    txt = f"""💳 𝐒𝐞𝐮 𝐏𝐢𝐱 𝐟𝐨𝐢 𝐠𝐞𝐫𝐚𝐝𝐨
+    resumo = f"""💳 𝐒𝐞𝐮 𝐏𝐢𝐱 𝐟𝐨𝐢 𝐠𝐞𝐫𝐚𝐝𝐨
 
 Valor: 𝐑$ {valor}
 
-Copie o código Pix abaixo e finalize o pagamento pelo app do seu banco.
+Escaneie o QR Code ou copie o código Pix na próxima mensagem.
 
-Após o pagamento, a liberação será automática.
+Após o pagamento, a liberação será automática."""
+    await message.answer(resumo)
 
-<code>{order.pix_payload or 'PIX não retornado pela Sunize'}</code>"""
-    await message.answer(txt, reply_markup=kb_pix(external_id), parse_mode="HTML")
+    pix_payload = order.pix_payload or "PIX não retornado pela Sunize"
+    qr_path = create_pix_qr_image(order.pix_payload or "", external_id)
+    if qr_path:
+        await message.answer_photo(
+            FSInputFile(qr_path),
+            caption="📲 𝐐𝐑 𝐂𝐨𝐝𝐞 𝐏𝐢𝐱 — escaneie pelo app do banco."
+        )
+
+    codigo_msg = f"""📋 𝐂𝐨́𝐝𝐢𝐠𝐨 𝐏𝐢𝐱 𝐜𝐨𝐩𝐢𝐚 𝐞 𝐜𝐨𝐥𝐚
+
+<code>{pix_payload}</code>"""
+    await message.answer(codigo_msg, reply_markup=kb_pix(external_id), parse_mode="HTML")
 
 
 @dp.message(Checkout.waiting_phone)
