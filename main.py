@@ -41,6 +41,11 @@ SUNIZE_API_KEY = os.getenv("SUNIZE_API_KEY", "")
 SUNIZE_API_SECRET = os.getenv("SUNIZE_API_SECRET", "")
 SUNIZE_BASE_URL = os.getenv("SUNIZE_BASE_URL", "https://api.sunize.com.br/v1").rstrip("/")
 START_VIDEO_PATH = os.getenv("START_VIDEO_PATH", "media/start.mp4")
+BASE_DIR = Path(__file__).resolve().parent
+
+PLAN_PRICE = Decimal(os.getenv("PLAN_PRICE", "17.49"))
+CALL_PRICE = Decimal(os.getenv("CALL_PRICE", "15.90"))
+SUNIZE_FEE_DISCOUNT = Decimal(os.getenv("SUNIZE_FEE_DISCOUNT", "0.99"))
 
 DEFAULT_CUSTOMER_NAME = os.getenv("DEFAULT_CUSTOMER_NAME", "Julia Costa")
 DEFAULT_CUSTOMER_EMAIL = os.getenv("DEFAULT_CUSTOMER_EMAIL", "juliacosta@gmail.com")
@@ -118,8 +123,8 @@ def kb_upsell() -> InlineKeyboardMarkup:
 def kb_pix(external_id: str, pix_payload: str = "") -> InlineKeyboardMarkup:
     rows = []
 
-    # Botão nativo de copiar, quando o Telegram/aiogram suportar.
-    # Em apps antigos, o fallback abaixo envia o código novamente para o cliente copiar.
+    # Botão nativo de copiar Pix. Precisa de aiogram atualizado.
+    # Se o app do Telegram não suportar, o fallback envia o código separado novamente.
     if CopyTextButton and pix_payload and not pix_payload.startswith("PIX não retornado"):
         rows.append([
             InlineKeyboardButton(
@@ -130,13 +135,13 @@ def kb_pix(external_id: str, pix_payload: str = "") -> InlineKeyboardMarkup:
     else:
         rows.append([
             InlineKeyboardButton(
-                text="📋 𝐕𝐞𝐫 𝐜𝐨́𝐝𝐢𝐠𝐨 𝐏𝐢𝐱 𝐝𝐞 𝐧𝐨𝐯𝐨",
+                text="📋 𝐂𝐨𝐩𝐢𝐚𝐫 𝐏𝐢𝐱 𝐜𝐨𝐩𝐢𝐚 𝐞 𝐜𝐨𝐥𝐚",
                 callback_data=f"copiar_pix:{external_id}",
             )
         ])
 
-    rows.extend([
-        [InlineKeyboardButton(text="🔄 𝐉𝐚́ 𝐩𝐚𝐠𝐮𝐞𝐢, 𝐯𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐫", callback_data=f"verificar:{external_id}")],
+    rows.append([
+        InlineKeyboardButton(text="🔄 𝐉𝐚́ 𝐩𝐚𝐠𝐮𝐞𝐢, 𝐯𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐫", callback_data=f"verificar:{external_id}")
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -155,14 +160,14 @@ START_TEXT = """🌸 𝐎𝐢𝐢, 𝐚𝐦𝐨𝐫... 𝐞𝐮 𝐞𝐬𝐭𝐚
 
 🔞 𝐀𝐂𝐄𝐒𝐒𝐎 𝐕𝐈𝐏 𝐏𝐑𝐈𝐕𝐀𝐃𝐎 🔞
 
-+𝟐𝟐𝟎 𝐌𝐈́𝐃𝐈𝐀𝐒 𝐄𝐗𝐂𝐋𝐔𝐒𝐈𝐕𝐀𝐒 
++𝟖𝟐𝟎 𝐌𝐈́𝐃𝐈𝐀𝐒 𝐄𝐗𝐂𝐋𝐔𝐒𝐈𝐕𝐀𝐒 | 𝐏𝐑𝐈𝐕𝐀𝐂𝐘
 
-😈 𝐀𝐍𝐀𝐋,𝐁𝐎𝐐𝐔𝐄𝐓𝐄 𝐄 𝐂𝐎𝐍𝐓𝐄𝐔́𝐃𝐎 𝐏𝐑𝐎𝐈𝐁𝐈𝐃𝐈𝐍𝐇𝐎
+😈 𝐀𝐍𝐀𝐋, 𝐁𝐎𝐐𝐔𝐄𝐓𝐄 𝐄 𝐂𝐎𝐍𝐓𝐄𝐔́𝐃𝐎 𝐏𝐑𝐎𝐈𝐁𝐈𝐃𝐈𝐍𝐇𝐎
 
 🎀 Vídeos exclusivos bem safadinhos
-🎀 Dando meu cuzinho apertado
-🎀 Mídias novas e atualizações todo dia
-🎀 Video de incesto bem safados
+🎀 Conteúdos íntimos que você não vê em qualquer lugar
+🎀 Mídias novas e atualizações frequentes
+🎀 Lives exclusivas para assinantes
 🎀 Vídeo personalizado gemendo seu nome
 🎀 Conteúdo privado, discreto e liberado na hora
 
@@ -221,12 +226,34 @@ def create_pix_qr_image(pix_payload: str, external_id: str) -> Optional[Path]:
     return qr_path
 
 
+def resolve_file_path(path_value: str) -> Optional[Path]:
+    """Procura o arquivo tanto pela pasta atual quanto pela pasta do main.py."""
+    candidates = [Path(path_value), BASE_DIR / path_value]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def format_brl(value: Decimal) -> str:
+    value = value.quantize(Decimal("0.01"))
+    return str(value).replace(".", ",")
+
+
+def charge_amount(display_total: Decimal) -> Decimal:
+    amount = display_total - SUNIZE_FEE_DISCOUNT
+    if amount < Decimal("0.01"):
+        amount = Decimal("0.01")
+    return amount.quantize(Decimal("0.01"))
+
+
 async def create_sunize_transaction(order: Order) -> dict:
+    plan_charge = charge_amount(PLAN_PRICE)
     items = [{
         "id": "acesso_vitalicio",
         "title": "Acesso vitalício VIP",
         "description": "Plano vitalício",
-        "price": 17.49,
+        "price": float(plan_charge),
         "quantity": 1,
         "is_physical": False,
     }]
@@ -235,7 +262,7 @@ async def create_sunize_transaction(order: Order) -> dict:
             "id": "chamada_25min",
             "title": "Chamada de vídeo 25 minutos",
             "description": "Oferta adicional",
-            "price": 15.90,
+            "price": float(CALL_PRICE),
             "quantity": 1,
             "is_physical": False,
         })
@@ -291,15 +318,15 @@ async def start(message: types.Message):
 
 @dp.callback_query(F.data == "confirmar_18")
 async def confirmar_18(callback: types.CallbackQuery):
-    video_exists = Path(START_VIDEO_PATH).exists()
+    video_path = resolve_file_path(START_VIDEO_PATH)
 
-    if video_exists:
-        await callback.message.answer_video(FSInputFile(START_VIDEO_PATH))
+    if video_path:
+        await callback.message.answer_video(FSInputFile(video_path))
     else:
         if ADMIN_ID:
             await bot.send_message(
                 ADMIN_ID,
-                f"⚠️ Vídeo do /start não encontrado. Confira se existe: {START_VIDEO_PATH}"
+                f"⚠️ Vídeo do /start não encontrado. Confira se existe no GitHub/Railway: {START_VIDEO_PATH}"
             )
 
     await callback.message.answer(START_TEXT, reply_markup=kb_buy())
@@ -360,7 +387,8 @@ async def gerar_pix(message: types.Message, user: types.User, has_call: bool, ph
         await state.clear()
         return
 
-    total = Decimal("33.39") if has_call else Decimal("17.49")
+    display_total = PLAN_PRICE + CALL_PRICE if has_call else PLAN_PRICE
+    total = charge_amount(display_total)
     external_id = f"tg_{user.id}_{int(time.time())}_{uuid.uuid4().hex[:6]}"
 
     order = Order(
@@ -398,10 +426,10 @@ async def gerar_pix(message: types.Message, user: types.User, has_call: bool, ph
     db.close()
     await state.clear()
 
-    valor = "33,39" if has_call else "17,49"
+    valor = format_brl(total)
     resumo = f"""💳 𝐒𝐞𝐮 𝐏𝐢𝐱 𝐟𝐨𝐢 𝐠𝐞𝐫𝐚𝐝𝐨
 
-Valor: 𝐑$ {valor}
+Valor do Pix: 𝐑$ {valor}
 
 Escaneie o QR Code ou copie o código Pix na próxima mensagem.
 
@@ -452,7 +480,7 @@ async def copiar_pix(callback: types.CallbackQuery):
         f"📋 𝐂𝐨́𝐝𝐢𝐠𝐨 𝐏𝐢𝐱 𝐜𝐨𝐩𝐢𝐚 𝐞 𝐜𝐨𝐥𝐚\n\n<code>{pix_payload}</code>",
         parse_mode="HTML",
     )
-    await callback.answer("Código Pix enviado novamente.")
+    await callback.answer("Código Pix disponível para copiar.")
 
 
 @dp.callback_query(F.data.startswith("verificar:"))
