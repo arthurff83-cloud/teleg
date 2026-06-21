@@ -24,9 +24,12 @@ from aiogram.types import (
     FSInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    InputMediaPhoto,
-    InputMediaVideo,
 )
+
+try:
+    from aiogram.types import CopyTextButton
+except Exception:
+    CopyTextButton = None
 
 load_dotenv()
 
@@ -37,7 +40,6 @@ SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "@suporte")
 SUNIZE_API_KEY = os.getenv("SUNIZE_API_KEY", "")
 SUNIZE_API_SECRET = os.getenv("SUNIZE_API_SECRET", "")
 SUNIZE_BASE_URL = os.getenv("SUNIZE_BASE_URL", "https://api.sunize.com.br/v1").rstrip("/")
-START_PHOTO_PATH = os.getenv("START_PHOTO_PATH", "media/start.jpg")
 START_VIDEO_PATH = os.getenv("START_VIDEO_PATH", "media/start.mp4")
 
 DEFAULT_CUSTOMER_NAME = os.getenv("DEFAULT_CUSTOMER_NAME", "Julia Costa")
@@ -113,11 +115,30 @@ def kb_upsell() -> InlineKeyboardMarkup:
     ])
 
 
-def kb_pix(external_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
+def kb_pix(external_id: str, pix_payload: str = "") -> InlineKeyboardMarkup:
+    rows = []
+
+    # Botão nativo de copiar, quando o Telegram/aiogram suportar.
+    # Em apps antigos, o fallback abaixo envia o código novamente para o cliente copiar.
+    if CopyTextButton and pix_payload and not pix_payload.startswith("PIX não retornado"):
+        rows.append([
+            InlineKeyboardButton(
+                text="📋 𝐂𝐨𝐩𝐢𝐚𝐫 𝐏𝐢𝐱 𝐜𝐨𝐩𝐢𝐚 𝐞 𝐜𝐨𝐥𝐚",
+                copy_text=CopyTextButton(text=pix_payload),
+            )
+        ])
+    else:
+        rows.append([
+            InlineKeyboardButton(
+                text="📋 𝐕𝐞𝐫 𝐜𝐨́𝐝𝐢𝐠𝐨 𝐏𝐢𝐱 𝐝𝐞 𝐧𝐨𝐯𝐨",
+                callback_data=f"copiar_pix:{external_id}",
+            )
+        ])
+
+    rows.extend([
         [InlineKeyboardButton(text="🔄 𝐉𝐚́ 𝐩𝐚𝐠𝐮𝐞𝐢, 𝐯𝐞𝐫𝐢𝐟𝐢𝐜𝐚𝐫", callback_data=f"verificar:{external_id}")],
-        [InlineKeyboardButton(text="💬 𝐂𝐡𝐚𝐦𝐚𝐫 𝐬𝐮𝐩𝐨𝐫𝐭𝐞", url=f"https://t.me/{SUPPORT_USERNAME.replace('@', '')}")],
     ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def kb_access(has_call: bool = False) -> InlineKeyboardMarkup:
@@ -126,7 +147,8 @@ def kb_access(has_call: bool = False) -> InlineKeyboardMarkup:
         rows.append([InlineKeyboardButton(text="🔞 𝐄𝐧𝐭𝐫𝐚𝐫 𝐧𝐨 𝐕𝐈𝐏 𝐩𝐫𝐢𝐯𝐚𝐝𝐨", url=VIP_LINK)])
     if has_call:
         rows.append([InlineKeyboardButton(text="📅 𝐀𝐠𝐞𝐧𝐝𝐚𝐫 𝐦𝐢𝐧𝐡𝐚 𝐜𝐡𝐚𝐦𝐚𝐝𝐚", url=f"https://t.me/{SUPPORT_USERNAME.replace('@', '')}")])
-    return InlineKeyboardMarkup(inline_keyboard=rows or [[InlineKeyboardButton(text="💬 𝐂𝐡𝐚𝐦𝐚𝐫 𝐬𝐮𝐩𝐨𝐫𝐭𝐞", url=f"https://t.me/{SUPPORT_USERNAME.replace('@', '')}")]])
+    rows.append([InlineKeyboardButton(text="💬 𝐂𝐡𝐚𝐦𝐚𝐫 𝐬𝐮𝐩𝐨𝐫𝐭𝐞", url=f"https://t.me/{SUPPORT_USERNAME.replace('@', '')}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 START_TEXT = """🌸 𝐎𝐢𝐢, 𝐚𝐦𝐨𝐫... 𝐞𝐮 𝐞𝐬𝐭𝐚𝐯𝐚 𝐭𝐞 𝐞𝐬𝐩𝐞𝐫𝐚𝐧𝐝𝐨 💦💗
@@ -269,23 +291,15 @@ async def start(message: types.Message):
 
 @dp.callback_query(F.data == "confirmar_18")
 async def confirmar_18(callback: types.CallbackQuery):
-    photo_exists = Path(START_PHOTO_PATH).exists()
     video_exists = Path(START_VIDEO_PATH).exists()
 
-    if photo_exists and video_exists:
-        await callback.message.answer_media_group(media=[
-            InputMediaPhoto(media=FSInputFile(START_PHOTO_PATH)),
-            InputMediaVideo(media=FSInputFile(START_VIDEO_PATH)),
-        ])
-    elif photo_exists:
-        await callback.message.answer_photo(FSInputFile(START_PHOTO_PATH))
-    elif video_exists:
+    if video_exists:
         await callback.message.answer_video(FSInputFile(START_VIDEO_PATH))
     else:
         if ADMIN_ID:
             await bot.send_message(
                 ADMIN_ID,
-                f"⚠️ Mídia do /start não encontrada. Confira se existem: {START_PHOTO_PATH} e {START_VIDEO_PATH}"
+                f"⚠️ Vídeo do /start não encontrado. Confira se existe: {START_VIDEO_PATH}"
             )
 
     await callback.message.answer(START_TEXT, reply_markup=kb_buy())
@@ -405,7 +419,7 @@ Após o pagamento, a liberação será automática."""
     codigo_msg = f"""📋 𝐂𝐨́𝐝𝐢𝐠𝐨 𝐏𝐢𝐱 𝐜𝐨𝐩𝐢𝐚 𝐞 𝐜𝐨𝐥𝐚
 
 <code>{pix_payload}</code>"""
-    await message.answer(codigo_msg, reply_markup=kb_pix(external_id), parse_mode="HTML")
+    await message.answer(codigo_msg, reply_markup=kb_pix(external_id, pix_payload), parse_mode="HTML")
 
 
 @dp.message(Checkout.waiting_phone)
@@ -419,6 +433,26 @@ async def get_phone(message: types.Message, state: FSMContext):
     has_call = bool(data.get("has_call"))
     await message.answer("⏳ Gerando seu Pix, aguarde...")
     await gerar_pix(message, message.from_user, has_call, phone, state)
+
+
+@dp.callback_query(F.data.startswith("copiar_pix:"))
+async def copiar_pix(callback: types.CallbackQuery):
+    external_id = callback.data.split(":", 1)[1]
+    db = SessionLocal()
+    order: Optional[Order] = db.execute(select(Order).where(Order.external_id == external_id)).scalar_one_or_none()
+    if not order or not order.pix_payload:
+        db.close()
+        await callback.message.answer("❌ Código Pix não encontrado. Gere um novo Pix ou chame o suporte.")
+        await callback.answer()
+        return
+
+    pix_payload = order.pix_payload
+    db.close()
+    await callback.message.answer(
+        f"📋 𝐂𝐨́𝐝𝐢𝐠𝐨 𝐏𝐢𝐱 𝐜𝐨𝐩𝐢𝐚 𝐞 𝐜𝐨𝐥𝐚\n\n<code>{pix_payload}</code>",
+        parse_mode="HTML",
+    )
+    await callback.answer("Código Pix enviado novamente.")
 
 
 @dp.callback_query(F.data.startswith("verificar:"))

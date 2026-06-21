@@ -3,7 +3,7 @@
 Bot com:
 - Aviso +18 no /start
 - Confirmação de maioridade
-- Envio de foto + vídeo após confirmar +18
+- Envio de vídeo após confirmar +18
 - Texto de venda com botão
 - Plano vitalício R$ 17,49
 - Oferta de chamada 25 min por +R$ 15,90
@@ -67,6 +67,12 @@ Se `DEFAULT_CUSTOMER_PHONE` ficar vazio, o bot pede o telefone do cliente antes 
 
 ## Atualização v3
 - Botões sem emojis de cor adicionais.
-- Mantém envio da foto + vídeo após confirmação +18.
+- Mantém envio da vídeo após confirmação +18.
 - Mantém Pix em mensagens separadas: texto, QR Code e código copia e cola.
 - Confirme no Railway: START_PHOTO_PATH=media/start.jpg e START_VIDEO_PATH=media/start.mp4
+
+
+## Atualização v5
+
+- Adicionado botão para copiar o Pix copia e cola quando o cliente recebe o pagamento.
+- Se o app do Telegram não suportar cópia direta, o botão envia o código Pix novamente separado.
